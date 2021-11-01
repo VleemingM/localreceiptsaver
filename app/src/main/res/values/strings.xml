@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">localreceiptsaver</string>
+    <string name="scan_receipt_fab_content_description">Scan receipt</string>
 </resources>
