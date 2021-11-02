@@ -15,9 +15,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -31,10 +28,16 @@ import java.net.URI
 import android.provider.MediaStore
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.os.Build
 import android.os.Environment
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import java.io.FileOutputStream
+import java.lang.Exception
+import kotlin.random.Random
 
 
 class MainActivity : ComponentActivity() {
@@ -52,31 +55,46 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Default() {
-    val context = LocalContext.current
-    var tempFileUri by remember { mutableStateOf(getTempFileUri(context)) }
-    var currentFileUri by remember { mutableStateOf(Uri.EMPTY) }
+    val files = LocalContext.current.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+    var currentFileUri by remember { mutableStateOf(Uri.fromFile(files?.listFiles()?.last())) }
     LocalreceiptsaverTheme {
         Scaffold(floatingActionButton = {
-            ScanReceiptFab(tempFileUri) {
+            ScanReceiptFab() {
                 currentFileUri = it
-                tempFileUri = getTempFileUri(context)
-                saveBitmap(context,currentFileUri)
             }
         }) {}
-        Row {
-            PreviewImage(currentFileUri)
-            SelectImage{
-                currentFileUri = it
+        Column {
+            Row {
+                PreviewImage(currentFileUri)
+                SelectImage {
+                    currentFileUri = it
+                }
+                files?.listFiles()?.toList()?.let { AllImages(files = it) }
             }
+
         }
     }
 }
 
 @Composable
+fun AllImages(files: List<File>) {
+    LazyColumn {
+        items(files) { file ->
+            PreviewImage(tempFileUri = Uri.fromFile(file))
+        }
+    }
+}
+
+
+@Composable
 fun SelectImage(pictureSelected: (uri: Uri) -> Unit) {
-    val test =rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){
-            uri: Uri? -> uri?.let {pictureSelected(uri) }}
-    Button(onClick = {test.launch("image/*")}){
+    val test =
+        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let {
+                pictureSelected(uri)
+            }
+        }
+    Button(onClick = { test.launch("image/*") }) {
         Text(text = "Select image")
     }
 }
@@ -96,54 +114,38 @@ fun PreviewImage(tempFileUri: Uri) {
 @Composable
 fun DefaultPreview() {
     LocalreceiptsaverTheme {
-        Scaffold(floatingActionButton = { ScanReceiptFab(Uri.EMPTY) {} }) {}
+        Scaffold(floatingActionButton = { ScanReceiptFab() {} }) {}
     }
 }
 
-
-fun saveBitmap(context:Context ,uri: Uri){
-    // TODO: VLEEMING 01/11/2021 how does one save a file LOL
-    var values = ContentValues()
-    values.put(MediaStore.Images.Media.TITLE, uri.path);
-    values.put(MediaStore.Images.Media.DISPLAY_NAME, "test");
-    values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-    values.put(MediaStore.Images.Media.DATE_ADDED, System.currentTimeMillis() / 1000);
-    values.put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis());
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/RECEIPTS")
-    }
-
-    context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values);
-
-}
 
 fun getTempFileUri(context: Context): Uri {
-    val tmpFile = File.createTempFile("tmp_image_file", ".png").apply {
-        createNewFile()
+    val storageDirectory = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+    val file = File.createTempFile("tmp_image_file", ".jpg", storageDirectory)
 
-    }
     return FileProvider.getUriForFile(
         context,
         "${BuildConfig.APPLICATION_ID}.provider",
-        tmpFile
+        file
     )
-
 }
 
 @Composable
-fun ScanReceiptFab(tempFileUri: Uri, pictureTaken: (uri: Uri) -> Unit) {
+fun ScanReceiptFab(pictureTaken: (uri: Uri) -> Unit) {
+    val context = LocalContext.current
+    var fileUri by remember { mutableStateOf(Uri.EMPTY) }
+
     val takePictureLauncher =
         rememberLauncherForActivityResult(
             ActivityResultContracts.TakePicture()
         ) { isSuccess ->
             if (isSuccess) {
-                pictureTaken(tempFileUri)
+                pictureTaken(fileUri)
             }
-
-
         }
     FloatingActionButton(onClick = {
-        takePictureLauncher.launch(tempFileUri)
+        fileUri = getTempFileUri(context)
+        takePictureLauncher.launch(fileUri)
     }) {
         Icon(
             Icons.Filled.Search,
